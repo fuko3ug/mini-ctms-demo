@@ -97,7 +97,8 @@ export default function LoginPage() {
           Admin: admin@example.com / any password<br />
           Coordinator: coordinator@example.com / any password<br />
           PI: pi@example.com / any password<br />
-          Participant: participant@example.com / any password
+          Participant: participant@example.com / any password<br />
+          Demo kit code: KIT-SKIN-DEMO
         </p>
         <p className="text-xs text-gray-500">
           Note: This is a demo with mock authentication. Passwords are not hashed.

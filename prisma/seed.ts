@@ -1,5 +1,24 @@
-const { PrismaClient } = require('@prisma/client');
-const prisma = new PrismaClient();
+import 'dotenv/config';
+import path from 'node:path';
+import { PrismaClient } from '../generated/prisma/client';
+import { PrismaBetterSqlite3 } from '@prisma/adapter-better-sqlite3';
+
+function getDatabaseUrl(): string {
+  const databaseUrl = process.env.DATABASE_URL ?? 'file:./dev.db';
+  if (!databaseUrl.startsWith('file:')) {
+    return databaseUrl;
+  }
+
+  const dbPath = databaseUrl.slice('file:'.length);
+  const resolvedPath = path.isAbsolute(dbPath)
+    ? dbPath
+    : path.join(process.cwd(), dbPath);
+
+  return `file:${resolvedPath}`;
+}
+
+const adapter = new PrismaBetterSqlite3({ url: getDatabaseUrl() });
+const prisma = new PrismaClient({ adapter });
 
 async function main() {
   console.log('Starting seed...');
@@ -228,6 +247,7 @@ async function main() {
 
   const kits = [];
   for (const kData of kitsData) {
+    const participant = participants.find((p) => p.id === kData.participantId)!;
     const kit = await prisma.kit.upsert({
       where: { kitCode: kData.kitCode },
       update: {},
@@ -244,7 +264,7 @@ async function main() {
         action: 'CREATE_KIT',
         targetType: 'KIT',
         targetId: kit.id,
-        studyId: kit.participant.studyId, // We need to get the studyId from the participant
+        studyId: participant.studyId,
         metadata: {
           createdBy: coordinatorUser.email,
           kitCode: kit.kitCode,
