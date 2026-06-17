@@ -1,0 +1,107 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client"
+  output   = "../generated/prisma"
+}
+
+datasource db {
+  provider = "sqlite"
+}
+
+model User {
+  id            String   @id @default(uuid())
+  name          String?
+  email         String   @unique
+  role          String   @default("COORDINATOR") // ADMIN, COORDINATOR, PI, etc.
+  password      String   // We'll hash in real app, but for demo we store plaintext (not for production)
+  studies       Study[]  @relation("StudyMembers")
+  participants  Participant[] @relation("ParticipantCreator")
+  kits          Kit[]         @relation("KitCreator")
+  auditLogs     AuditLog[] @relation("AuditLogActor")
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@index([email])
+}
+
+model Study {
+  id          String   @id @default(uuid())
+  name        String
+  code        String   @unique
+  description String?
+  status      String   @default("ACTIVE") // ACTIVE, PAUSED, COMPLETED, etc.
+  members     User[]   @relation("StudyMembers")
+  participants Participant[]
+  auditLogs   AuditLog[] @relation("AuditLogStudy")
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([code])
+}
+
+model Participant {
+  id            String   @id @default(uuid())
+  studyId       String
+  study         Study    @relation(fields: [studyId], references: [id])
+  participantCode String @unique
+  firstName     String
+  lastName      String
+  email         String   @unique
+  phone         String?
+  status        String   @default("REGISTERED") // REGISTERED, SCREENING, ENROLLED, KIT_SENT, KIT_ACTIVATED, SAMPLE_RECEIVED, COMPLETED, WITHDRAWN
+  dateOfBirth   DateTime?
+  address       String?
+  createdBy     User?    @relation("ParticipantCreator", fields: [createdById], references: [id])
+  createdById   String?
+  kits          Kit[]
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@index([participantCode])
+  @@index([studyId])
+}
+
+model Kit {
+  id          String   @id @default(uuid())
+  participantId String
+  participant Participant @relation(fields: [participantId], references: [id])
+  kitCode     String   @unique
+  status      String   @default("SHIPPED") // SHIPPED, RECEIVED, ACTIVATED, USED, etc.
+  shippedAt   DateTime?
+  receivedAt  DateTime?
+  activatedAt DateTime?
+  createdBy   User?    @relation("KitCreator", fields: [createdById], references: [id])
+  createdById   String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([kitCode])
+  @@index([participantId])
+}
+
+model AuditLog {
+  id          String   @id @default(uuid())
+  actorId     String
+  actor       User     @relation("AuditLogActor", fields: [actorId], references: [id])
+  actorRole   String   // ADMIN, COORDINATOR, PI, PARTICIPANT (if we allow self-actions)
+  action      String   // CREATE_PARTICIPANT, UPDATE_PARTICIPANT_STATUS, ACTIVATE_KIT, etc.
+  targetType  String   // PARTICIPANT, KIT, STUDY, USER
+  targetId    String
+  studyId     String   // We can denormalize studyId for easy filtering by study
+  study       Study    @relation("AuditLogStudy", fields: [studyId], references: [id])
+  metadata    Json     // Additional data as JSON
+  ipAddress   String?  // Mock IP
+  createdAt   DateTime @default(now())
+
+  @@index([actorId])
+  @@index([studyId])
+  @@index([targetType, targetId])
+}
+
+// Note: We removed the auditLogs array from Participant and Kit to avoid relation errors.
+// We keep the auditLogs in User for the actor relation (so we can see what a user did).
+// For getting audit logs for a participant, we will query AuditLog where targetType = "PARTICIPANT" and targetId = participant.id.
+// For getting audit logs for a kit, we will query AuditLog where targetType = "KIT" and targetId = kit.id.
+// For getting audit logs for a study, we have the direct relation auditLogs in Study.
